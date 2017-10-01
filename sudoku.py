@@ -1,12 +1,9 @@
 from pprint import pprint
 import numpy as np
-#import math
 import pycosat
 import itertools
 import csv
-#import matplotlib.pyplot as plt
 
-input_sudoku = "000000010400000000020000000000050407008000300001090000300400200050100000000806000"
 
 def sum_permutations(summers_needed, sum_total):
     nums = np.array([1,2,3,4,5,6,7,8,9])
@@ -48,16 +45,32 @@ def load_blocks(filename, indices):
 
     return blocks
 
+#convert rules to correct cnf
 def convert_rules(rules):
     res = []
     for rule in rules:
         single_clause = []
         for clause in range(0, len(rule)):
-            single_clause.append(v(int(str(rule[clause])[:-1]) // 9 + 1, int(str(rule[clause])[:-1]) % 9,
-                int(str(rule[clause])[len(str(rule[clause])) - 1])))
+            if len(rule[clause]) > 2:
+                if rule[clause][0] != '-':
+                    single_clause.append(v(int(str(rule[clause])[:-1]) // 9 + 1, int(str(rule[clause])[:-1]) % 9 + 1,
+                        int(str(rule[clause])[len(str(rule[clause])) - 1])))
+                else:
+                    single_clause.append(-v(int(str(rule[clause])[1:-1]) // 9 + 1, int(str(rule[clause])[1:-1]) % 9 + 1,
+                                           int(str(rule[clause])[len(str(rule[clause])) - 1])))
+            else:
+                single_clause.append(v(int(rule[clause][0]) // 9 + 1, int(rule[clause][0]) % 9 + 1, int(rule[clause][1])))
         res.append(single_clause)
     return res
 
+#zet de sudoku om naar de juiste vorm
+def sudoku_form2(x):
+    empty_sudoku = [[0] * 9 for j in range(9)]
+    for i in range(0, 81):
+        empty_sudoku[int(i / 9)][i % 9] = x[int(i / 9)][i % 9]
+    return empty_sudoku
+
+# deze functie lijkt door de komst van versie 2 overbodig, afhankelijk van de inputvorm van de sudoku
 def sudoku_form(x):
     test_sudoku = [[0]* 9 for j in range(9)]
     for i in range(0, 81):
@@ -168,6 +181,20 @@ def solve(grid):
             if d:
                 clauses.append([v(i, j, d)])
 
+    # load all information about the new sudoku
+    indices_amount = len(new_sudoku) * len(new_sudoku)
+    blocks = load_blocks("./easy_sudoku_rules.txt", indices_amount)
+    sum_rules = convert_rules(load_sum_rules(blocks))
+    killer_sudoku_clauses = convert_rules(load_implication_rules(blocks, indices_amount))
+
+    # add all clauses in correct form
+    for i in range(0, len(killer_sudoku_clauses)):
+        clauses.append(killer_sudoku_clauses[i])
+
+    # add all clauses in correct form
+    for i in range(0, len(sum_rules)):
+        clauses.append(sum_rules[i])
+
     # solve the SAT problem
     sol = set(pycosat.solve(clauses))
 
@@ -181,21 +208,10 @@ def solve(grid):
         for j in range(1, 10):
             grid[i - 1][j - 1] = read_cell(i, j)
 
-sudokumatrix = np.loadtxt("./easy_killer_sudoku.txt", dtype=int, delimiter=',')
-indices_amount = sudokumatrix.shape[0] * sudokumatrix.shape[1]
 
-blocks = load_blocks("./easy_sudoku_rules.txt", indices_amount)
-print(blocks)
-sum_rules = convert_rules(load_sum_rules(blocks))
-#print(sum_rules)
-implication_rules = convert_rules(load_implication_rules(blocks, indices_amount))
-#print(implication_rules)
+#nieuwe lege sudoku
+empty_sudoku = [[0] * 9 for j in range(9)]
+new_sudoku = sudoku_form2(empty_sudoku)
 
-print(sudokumatrix)
-
-new_sudoku = sudoku_form(input_sudoku)
-
-
-
-#solve(new_sudoku)
-#pprint(new_sudoku)
+solve(new_sudoku)
+pprint(new_sudoku)
